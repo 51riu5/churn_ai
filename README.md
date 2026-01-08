@@ -40,6 +40,42 @@ Run FastAPI (optional):
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+## Serving (FastAPI)
+- Prereqs: dataset at `data/WA_Fn-UseC_-Telco-Customer-Churn.csv` and a trained checkpoint at `artifacts/checkpoints/best_transformer.pt` (run training first).
+- Start API (dev): `uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload`
+- Override paths if needed:
+  - `CHURN_CONFIG=path/to/config.yaml`
+  - `CHURN_CHECKPOINT=path/to/model.pt`
+- Example request to `/predict-churn`:
+```json
+{
+  "sequence": [
+    {
+      "tenure": 12,
+      "MonthlyCharges": 70,
+      "TotalCharges": 840,
+      "gender": "Female",
+      "SeniorCitizen": "0",
+      "Partner": "Yes",
+      "Dependents": "No",
+      "PhoneService": "Yes",
+      "MultipleLines": "No",
+      "InternetService": "Fiber optic",
+      "OnlineSecurity": "No",
+      "OnlineBackup": "Yes",
+      "DeviceProtection": "No",
+      "TechSupport": "No",
+      "StreamingTV": "Yes",
+      "StreamingMovies": "Yes",
+      "Contract": "Month-to-month",
+      "PaperlessBilling": "Yes",
+      "PaymentMethod": "Electronic check"
+    }
+  ]
+}
+```
+- Response: `{"churn_probability": 0.x, "risk": "low|medium|high"}`
+
 ## Project Structure
 - `configs/` – YAML configs with data/model/training defaults
 - `src/data/` – loading, preprocessing, temporal sequence generation, datasets
