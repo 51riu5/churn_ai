@@ -1,0 +1,38 @@
+seed: 42
+
+data:
+  path: data/WA_Fn-UseC_-Telco-Customer-Churn.csv
+  seq_len: 12
+  drift_std: 0.03          # std for numeric drift to simulate temporal behavior
+  val_size: 0.15
+  test_size: 0.15
+  random_state: 42
+  target_col: Churn
+  id_col: customerID
+
+model:
+  type: transformer
+  input_dropout: 0.1
+  d_model: 64
+  n_heads: 4
+  num_layers: 2
+  dim_feedforward: 128
+  dropout: 0.1
+  use_cls_token: true
+  pooling: mean            # options: mean, max, cls
+
+training:
+  batch_size: 64
+  num_epochs: 20
+  lr: 0.001
+  weight_decay: 0.0001
+  optimizer: adamw         # options: adam, adamw
+  scheduler: cosine        # options: cosine, none
+  early_stopping_patience: 5
+  grad_clip_norm: 1.0
+  device: auto             # auto | cpu | cuda
+
+paths:
+  checkpoints: artifacts/checkpoints
+  reports: artifacts/reports
+  figures: artifacts/figures

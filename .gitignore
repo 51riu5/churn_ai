@@ -1,0 +1,18 @@
+# Virtual environments
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Data files (keep CSVs locally)
+data/*.csv
+
+# Artifacts and checkpoints
+artifacts/checkpoints*/
+artifacts/reports*/
+artifacts/figures*/
+
+# IDE
+.vscode/
+.idea/
