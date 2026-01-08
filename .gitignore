@@ -7,6 +7,7 @@ __pycache__/
 
 # Data files (keep CSVs locally)
 data/*.csv
+src/data/*.csv
 
 # Artifacts and checkpoints
 artifacts/checkpoints*/
