@@ -65,6 +65,18 @@ _seq_len: int = 12
 async def startup():
     global _model, _preprocessor, _logreg, _device, _cfg, _seq_len
 
+    try:
+        await _do_startup()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"[API] STARTUP ERROR: {e}")
+        # Don't re-raise — let the server start so Render sees the port
+
+
+async def _do_startup():
+    global _model, _preprocessor, _logreg, _device, _cfg, _seq_len
+
     from src.config import load_config
     from src.data.preprocessing import (
         CATEGORICAL_COLS,
@@ -78,20 +90,15 @@ async def startup():
     _cfg = load_config(str(CONFIG_PATH))
     _seq_len = _cfg["data"].get("seq_len", 12)
 
-    # 1. Load preprocessor (try pickle first, fallback to fit from CSV)
-    pkl_path = CHECKPOINTS / "preprocessor.pkl"
-    if pkl_path.exists():
-        with open(pkl_path, "rb") as f:
-            _preprocessor = pickle.load(f)
-        print("[API] Loaded preprocessor from pickle")
-    else:
-        csv_path = PROJECT_ROOT / _cfg["data"]["path"]
-        df = pd.read_csv(str(csv_path))
-        validate_telco_columns(df, "Churn")
-        df = clean_telco_data(df, "Churn")
-        _preprocessor = build_preprocessor(CATEGORICAL_COLS, NUMERIC_COLS)
-        _preprocessor = fit_preprocessor(_preprocessor, df, "Churn", "customerID")
-        print("[API] Built preprocessor from CSV (no pickle found)")
+    # 1. Build preprocessor from CSV (always — avoids sklearn version mismatch)
+    csv_path = PROJECT_ROOT / _cfg["data"]["path"]
+    print(f"[API] Loading CSV from {csv_path}")
+    df = pd.read_csv(str(csv_path))
+    validate_telco_columns(df, "Churn")
+    df = clean_telco_data(df, "Churn")
+    _preprocessor = build_preprocessor(CATEGORICAL_COLS, NUMERIC_COLS)
+    _preprocessor = fit_preprocessor(_preprocessor, df, "Churn", "customerID")
+    print("[API] Built preprocessor from CSV")
 
     # 2. (Optional) Load MSTAN model — only if PyTorch is installed
     if HAS_TORCH:
@@ -131,10 +138,6 @@ async def startup():
     # 3. Train LogReg for live predictions (only needs sklearn)
     from sklearn.linear_model import LogisticRegression
 
-    csv_path = PROJECT_ROOT / _cfg["data"]["path"]
-    df = pd.read_csv(str(csv_path))
-    validate_telco_columns(df, "Churn")
-    df = clean_telco_data(df, "Churn")
     feature_df = df.drop(columns=["Churn", "customerID"])
     X = _preprocessor.transform(feature_df)
     if hasattr(X, "toarray"):
