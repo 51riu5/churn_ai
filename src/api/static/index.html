@@ -567,15 +567,20 @@ async function runPrediction() {
 
   const form = document.getElementById('predictForm');
   const data = {};
+  const numericFields = new Set(['tenure', 'MonthlyCharges', 'TotalCharges']);
   new FormData(form).forEach((v,k) => {
-    data[k] = isNaN(v) || v === '' ? v : parseFloat(v);
+    data[k] = numericFields.has(k) ? parseFloat(v) : String(v);
   });
 
   try {
     const res = await fetch('/api/predict', {
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)
     });
-    if (!res.ok) throw new Error((await res.json()).detail || 'Error');
+    if (!res.ok) {
+      const err = await res.json();
+      const msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+      throw new Error(msg);
+    }
     const result = await res.json();
     showResult(result);
   } catch(e) {
