@@ -4,9 +4,11 @@ Churn AI — Interactive Dashboard Backend
 Serves the presentation dashboard + API endpoints for live prediction,
 model comparison data, training histories, and figure images.
 
-Usage:
-    cd Churn_AI
+Usage (local):
     uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+
+Usage (deployed):
+    Render / Railway auto-detect the Procfile.
 """
 
 from __future__ import annotations
@@ -19,11 +21,17 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
+
+# Optional: PyTorch is only needed for MSTAN inference (not for the dashboard)
+try:
+    import torch
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
 
 # ── Paths ──────────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -46,7 +54,7 @@ app.add_middleware(
 # ── Global state (loaded at startup) ──────────────────────────────
 _model = None
 _preprocessor = None
-_logreg = None           # fast LogReg for live single-record predictions
+_logreg = None
 _device = None
 _cfg: Dict[str, Any] = {}
 _seq_len: int = 12
@@ -58,11 +66,16 @@ async def startup():
     global _model, _preprocessor, _logreg, _device, _cfg, _seq_len
 
     from src.config import load_config
-    from src.models.mstan import MSTANChurnClassifier
-    from src.training.utils import get_device
+    from src.data.preprocessing import (
+        CATEGORICAL_COLS,
+        NUMERIC_COLS,
+        build_preprocessor,
+        clean_telco_data,
+        fit_preprocessor,
+        validate_telco_columns,
+    )
 
     _cfg = load_config(str(CONFIG_PATH))
-    _device = get_device(_cfg["training"].get("device", "auto"))
     _seq_len = _cfg["data"].get("seq_len", 12)
 
     # 1. Load preprocessor (try pickle first, fallback to fit from CSV)
@@ -72,15 +85,6 @@ async def startup():
             _preprocessor = pickle.load(f)
         print("[API] Loaded preprocessor from pickle")
     else:
-        from src.data.preprocessing import (
-            CATEGORICAL_COLS,
-            NUMERIC_COLS,
-            build_preprocessor,
-            clean_telco_data,
-            fit_preprocessor,
-            validate_telco_columns,
-        )
-
         csv_path = PROJECT_ROOT / _cfg["data"]["path"]
         df = pd.read_csv(str(csv_path))
         validate_telco_columns(df, "Churn")
@@ -89,39 +93,43 @@ async def startup():
         _preprocessor = fit_preprocessor(_preprocessor, df, "Churn", "customerID")
         print("[API] Built preprocessor from CSV (no pickle found)")
 
-    # 2. Load MSTAN model
-    ckpt = CHECKPOINTS / "best_mstan.pt"
-    if ckpt.exists() and _preprocessor is not None:
-        from src.data.preprocessing import CATEGORICAL_COLS, NUMERIC_COLS
+    # 2. (Optional) Load MSTAN model — only if PyTorch is installed
+    if HAS_TORCH:
+        try:
+            from src.models.mstan import MSTANChurnClassifier
+            from src.training.utils import get_device
 
-        dummy = pd.DataFrame(
-            {col: ["Unknown"] for col in CATEGORICAL_COLS}
-            | {col: [0.0] for col in NUMERIC_COLS}
-        )
-        feature_dim = _preprocessor.transform(dummy).shape[1]
-        mc = _cfg["model"]
-        _model = MSTANChurnClassifier(
-            input_dim=feature_dim,
-            d_model=mc.get("d_model", 64),
-            nhead=mc.get("n_heads", 4),
-            num_layers=mc.get("num_layers", 2),
-            dim_feedforward=mc.get("dim_feedforward", 128),
-            dropout=mc.get("dropout", 0.1),
-            input_dropout=mc.get("input_dropout", 0.1),
-            scales=tuple(mc.get("scales", [1, 2, 4])),
-            conv_kernel_size=mc.get("conv_kernel_size", 3),
-        ).to(_device)
-        state = torch.load(str(ckpt), map_location=_device, weights_only=True)
-        _model.load_state_dict(state)
-        _model.eval()
-        print(f"[API] Loaded MSTAN model ({feature_dim} features)")
+            _device = get_device(_cfg["training"].get("device", "auto"))
+            ckpt = CHECKPOINTS / "best_mstan.pt"
+            if ckpt.exists() and _preprocessor is not None:
+                dummy = pd.DataFrame(
+                    {col: ["Unknown"] for col in CATEGORICAL_COLS}
+                    | {col: [0.0] for col in NUMERIC_COLS}
+                )
+                feature_dim = _preprocessor.transform(dummy).shape[1]
+                mc = _cfg["model"]
+                _model = MSTANChurnClassifier(
+                    input_dim=feature_dim,
+                    d_model=mc.get("d_model", 64),
+                    nhead=mc.get("n_heads", 4),
+                    num_layers=mc.get("num_layers", 2),
+                    dim_feedforward=mc.get("dim_feedforward", 128),
+                    dropout=mc.get("dropout", 0.1),
+                    input_dropout=mc.get("input_dropout", 0.1),
+                    scales=tuple(mc.get("scales", [1, 2, 4])),
+                    conv_kernel_size=mc.get("conv_kernel_size", 3),
+                ).to(_device)
+                state = torch.load(str(ckpt), map_location=_device, weights_only=True)
+                _model.load_state_dict(state)
+                _model.eval()
+                print(f"[API] Loaded MSTAN model ({feature_dim} features)")
+        except Exception as e:
+            print(f"[API] MSTAN loading skipped: {e}")
     else:
-        print("[API] WARNING: No MSTAN checkpoint found — prediction disabled")
+        print("[API] PyTorch not installed — MSTAN loading skipped (dashboard still works)")
 
-    # 3. Train a fast LogReg for live single-record predictions
-    #    (MSTAN needs temporal sequences; LogReg works on static features)
+    # 3. Train LogReg for live predictions (only needs sklearn)
     from sklearn.linear_model import LogisticRegression
-    from src.data.preprocessing import clean_telco_data, validate_telco_columns
 
     csv_path = PROJECT_ROOT / _cfg["data"]["path"]
     df = pd.read_csv(str(csv_path))
@@ -134,9 +142,10 @@ async def startup():
     y = df["Churn"].values
     _logreg = LogisticRegression(max_iter=300, class_weight="balanced", solver="liblinear")
     _logreg.fit(X, y)
-    print(f"[API] Trained LogReg for live predictions")
+    print("[API] Trained LogReg for live predictions")
 
-    print("[API] Ready at http://localhost:8000")
+    port = os.environ.get("PORT", "8000")
+    print(f"[API] Ready!")
 
 
 # ── Schemas ────────────────────────────────────────────────────────
@@ -192,7 +201,7 @@ async def get_histories():
 
 @app.get("/api/figures/{filename}")
 async def get_figure(filename: str):
-    safe = Path(filename).name  # prevent directory traversal
+    safe = Path(filename).name
     path = FIGURES / safe
     if not path.exists():
         raise HTTPException(404, f"Figure '{filename}' not found")

@@ -5,15 +5,12 @@
 __pycache__/
 *.pyc
 
-# Data files (keep CSVs locally)
-data/*.csv
-src/data/*.csv
-
-# Artifacts and checkpoints
-artifacts/checkpoints*/
-artifacts/reports*/
-artifacts/figures*/
-
 # IDE
 .vscode/
 .idea/
+
+# Large training checkpoints (PyTorch weights — not needed for deployment)
+artifacts/checkpoints/*.pt
+
+# Duplicate data
+src/data/*.csv

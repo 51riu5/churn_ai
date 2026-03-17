@@ -1,0 +1,11 @@
+# Lightweight deployment requirements (no PyTorch — saves ~800MB)
+# Dashboard, charts, figures, and live prediction all work without it.
+pandas>=2.1.0
+numpy>=1.26.0
+scikit-learn>=1.4.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+pyyaml>=6.0.1
+fastapi>=0.110.0
+uvicorn>=0.23.0
+pydantic>=1.10.0
