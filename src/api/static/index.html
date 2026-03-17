@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Churn AI — Interactive Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+          colors: { brand: { 50:'#ecfdf5',100:'#d1fae5',400:'#34d399',500:'#10b981',600:'#059669',900:'#064e3b' } }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .glass { background: rgba(15,23,42,0.6); backdrop-filter: blur(16px); border: 1px solid rgba(148,163,184,0.1); }
+    .gradient-border { position: relative; }
+    .gradient-border::before { content:''; position:absolute; inset:-1px; border-radius:inherit; padding:1px; background:linear-gradient(135deg,#10b981,#6366f1,#f59e0b); -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none; }
+    .fade-in { opacity:0; transform:translateY(24px); transition:all 0.7s cubic-bezier(.4,0,.2,1); }
+    .fade-in.visible { opacity:1; transform:translateY(0); }
+    .gauge-ring { transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1); }
+    .tab-btn.active { background: rgba(16,185,129,0.15); color: #10b981; border-color: #10b981; }
+    .glow { box-shadow: 0 0 40px rgba(16,185,129,0.08); }
+    ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#0f172a; } ::-webkit-scrollbar-thumb { background:#334155; border-radius:3px; }
+    select, input[type=number] { background: #1e293b; }
+  </style>
+</head>
+
+<body class="bg-[#030712] text-gray-100 antialiased">
+
+<!-- ═══════════════════ NAVIGATION ═══════════════════ -->
+<nav class="fixed top-0 w-full z-50 glass border-b border-slate-800/50">
+  <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-indigo-500 flex items-center justify-center text-sm font-bold">C</div>
+      <span class="font-bold text-lg tracking-tight">Churn AI</span>
+      <span class="hidden sm:inline text-xs text-slate-500 ml-2 border border-slate-700 rounded px-2 py-0.5">MSTAN</span>
+    </div>
+    <div class="hidden md:flex items-center gap-6 text-sm text-slate-400">
+      <a href="#overview" class="hover:text-white transition">Overview</a>
+      <a href="#comparison" class="hover:text-white transition">Comparison</a>
+      <a href="#training" class="hover:text-white transition">Training</a>
+      <a href="#predict" class="hover:text-white transition">Predict</a>
+      <a href="#architecture" class="hover:text-white transition">Architecture</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════════ HERO ═══════════════════ -->
+<section id="overview" class="pt-28 pb-16 px-6">
+  <div class="max-w-7xl mx-auto text-center">
+    <div class="inline-block mb-4 px-4 py-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/5 text-emerald-400 text-sm font-medium">Final Year Project</div>
+    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-4">
+      Deep Learning&ndash;Driven<br>
+      <span class="bg-gradient-to-r from-emerald-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent">Customer Churn Forecasting</span>
+    </h1>
+    <p class="text-slate-400 text-lg max-w-2xl mx-auto mb-12">
+      A novel <strong class="text-white">Multi-Scale Temporal Attention Network (MSTAN)</strong> with temporal decay attention bias, focal loss, and churn-correlated sequence modelling.
+    </p>
+
+    <!-- Key stat cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto" id="statCards">
+      <div class="glass rounded-2xl p-5 glow fade-in">
+        <div class="text-3xl font-extrabold font-mono text-emerald-400" data-counter="0.848">—</div>
+        <div class="text-xs text-slate-400 mt-1">Best F1 (MSTAN)</div>
+      </div>
+      <div class="glass rounded-2xl p-5 glow fade-in">
+        <div class="text-3xl font-extrabold font-mono text-cyan-400" data-counter="0.968">—</div>
+        <div class="text-xs text-slate-400 mt-1">ROC-AUC</div>
+      </div>
+      <div class="glass rounded-2xl p-5 glow fade-in">
+        <div class="text-3xl font-extrabold font-mono text-indigo-400">5</div>
+        <div class="text-xs text-slate-400 mt-1">Models Compared</div>
+      </div>
+      <div class="glass rounded-2xl p-5 glow fade-in">
+        <div class="text-3xl font-extrabold font-mono text-amber-400">3</div>
+        <div class="text-xs text-slate-400 mt-1">Novel Components</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ MODEL COMPARISON ═══════════════════ -->
+<section id="comparison" class="py-16 px-6">
+  <div class="max-w-7xl mx-auto">
+    <h2 class="text-3xl font-bold mb-2 fade-in">Model Comparison</h2>
+    <p class="text-slate-400 mb-8 fade-in">Test set performance across all architectures</p>
+
+    <div class="grid lg:grid-cols-2 gap-6">
+      <!-- Bar chart -->
+      <div class="glass rounded-2xl p-6 fade-in">
+        <canvas id="barChart" height="300"></canvas>
+      </div>
+      <!-- Radar chart -->
+      <div class="glass rounded-2xl p-6 fade-in">
+        <canvas id="radarChart" height="300"></canvas>
+      </div>
+    </div>
+
+    <!-- Metrics table -->
+    <div class="glass rounded-2xl p-6 mt-6 overflow-x-auto fade-in">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-slate-400 border-b border-slate-700/50">
+            <th class="text-left py-3 px-4">Model</th>
+            <th class="text-right py-3 px-4">F1</th>
+            <th class="text-right py-3 px-4">Recall</th>
+            <th class="text-right py-3 px-4">Precision</th>
+            <th class="text-right py-3 px-4">ROC-AUC</th>
+            <th class="text-right py-3 px-4">PR-AUC</th>
+          </tr>
+        </thead>
+        <tbody id="metricsTable"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ CURVES ═══════════════════ -->
+<section class="py-16 px-6">
+  <div class="max-w-7xl mx-auto">
+    <h2 class="text-3xl font-bold mb-2 fade-in">ROC &amp; Precision-Recall Curves</h2>
+    <p class="text-slate-400 mb-8 fade-in">Overlaid curves for all five models</p>
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="glass rounded-2xl p-4 fade-in"><img src="/api/figures/multi_roc.png" alt="ROC Curves" class="w-full rounded-lg"></div>
+      <div class="glass rounded-2xl p-4 fade-in"><img src="/api/figures/multi_pr.png" alt="PR Curves" class="w-full rounded-lg"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ TRAINING DYNAMICS ═══════════════════ -->
+<section id="training" class="py-16 px-6">
+  <div class="max-w-7xl mx-auto">
+    <h2 class="text-3xl font-bold mb-2 fade-in">Training Dynamics</h2>
+    <p class="text-slate-400 mb-8 fade-in">Interactive epoch-by-epoch view — hover for details</p>
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="glass rounded-2xl p-6 fade-in">
+        <h3 class="text-sm font-semibold text-slate-400 mb-3">Validation Loss</h3>
+        <canvas id="valLossChart" height="220"></canvas>
+      </div>
+      <div class="glass rounded-2xl p-6 fade-in">
+        <h3 class="text-sm font-semibold text-slate-400 mb-3">Validation F1 Score</h3>
+        <canvas id="valF1Chart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ CONFUSION MATRICES ═══════════════════ -->
+<section class="py-16 px-6">
+  <div class="max-w-7xl mx-auto">
+    <h2 class="text-3xl font-bold mb-2 fade-in">Confusion Matrices</h2>
+    <p class="text-slate-400 mb-6 fade-in">Click a model to view its confusion matrix</p>
+    <div class="flex flex-wrap gap-2 mb-6 fade-in" id="cmTabs">
+      <button class="tab-btn active px-4 py-2 rounded-lg border border-slate-700 text-sm font-medium transition" data-img="mstan_ours_confusion.png">MSTAN (Ours)</button>
+      <button class="tab-btn px-4 py-2 rounded-lg border border-slate-700 text-sm font-medium text-slate-400 transition" data-img="transformer_confusion.png">Transformer</button>
+      <button class="tab-btn px-4 py-2 rounded-lg border border-slate-700 text-sm font-medium text-slate-400 transition" data-img="lstm_confusion.png">LSTM</button>
+      <button class="tab-btn px-4 py-2 rounded-lg border border-slate-700 text-sm font-medium text-slate-400 transition" data-img="rf_confusion.png">Random Forest</button>
+      <button class="tab-btn px-4 py-2 rounded-lg border border-slate-700 text-sm font-medium text-slate-400 transition" data-img="logreg_confusion.png">LogReg</button>
+    </div>
+    <div class="glass rounded-2xl p-6 flex justify-center fade-in">
+      <img id="cmImage" src="/api/figures/mstan_ours_confusion.png" alt="Confusion Matrix" class="max-h-[420px] rounded-lg transition-opacity duration-300">
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ LIVE PREDICTION ═══════════════════ -->
+<section id="predict" class="py-16 px-6">
+  <div class="max-w-7xl mx-auto">
+    <h2 class="text-3xl font-bold mb-2 fade-in">Live Churn Prediction</h2>
+    <p class="text-slate-400 mb-8 fade-in">Enter customer details and predict in real-time using MSTAN</p>
+
+    <div class="grid lg:grid-cols-3 gap-6">
+      <!-- Form -->
+      <div class="lg:col-span-2 glass rounded-2xl p-6 fade-in">
+        <!-- Presets -->
+        <div class="flex gap-3 mb-6">
+          <button onclick="fillPreset('high')" class="px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium hover:bg-red-500/20 transition">Fill High-Risk Profile</button>
+          <button onclick="fillPreset('low')" class="px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/20 transition">Fill Low-Risk Profile</button>
+        </div>
+
+        <form id="predictForm" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+          <!-- Numeric -->
+          <div>
+            <label class="block text-slate-400 mb-1">Tenure (months)</label>
+            <input type="number" name="tenure" value="12" min="0" max="72" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Monthly Charges ($)</label>
+            <input type="number" name="MonthlyCharges" value="70" min="18" max="120" step="0.1" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Total Charges ($)</label>
+            <input type="number" name="TotalCharges" value="840" min="0" max="9000" step="0.1" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+          </div>
+
+          <!-- Categorical -->
+          <div>
+            <label class="block text-slate-400 mb-1">Gender</label>
+            <select name="gender" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>Female</option><option>Male</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Senior Citizen</label>
+            <select name="SeniorCitizen" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option value="0">No</option><option value="1">Yes</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Partner</label>
+            <select name="Partner" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>Yes</option><option>No</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Dependents</label>
+            <select name="Dependents" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>No</option><option>Yes</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Contract</label>
+            <select name="Contract" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>Month-to-month</option><option>One year</option><option>Two year</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Internet Service</label>
+            <select name="InternetService" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>Fiber optic</option><option>DSL</option><option>No</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Phone Service</label>
+            <select name="PhoneService" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>Yes</option><option>No</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Multiple Lines</label>
+            <select name="MultipleLines" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>No</option><option>Yes</option><option>No phone service</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Online Security</label>
+            <select name="OnlineSecurity" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>No</option><option>Yes</option><option>No internet service</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Online Backup</label>
+            <select name="OnlineBackup" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>Yes</option><option>No</option><option>No internet service</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Device Protection</label>
+            <select name="DeviceProtection" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>No</option><option>Yes</option><option>No internet service</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Tech Support</label>
+            <select name="TechSupport" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>No</option><option>Yes</option><option>No internet service</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Streaming TV</label>
+            <select name="StreamingTV" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>Yes</option><option>No</option><option>No internet service</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Streaming Movies</label>
+            <select name="StreamingMovies" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>Yes</option><option>No</option><option>No internet service</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Paperless Billing</label>
+            <select name="PaperlessBilling" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>Yes</option><option>No</option>
+            </select>
+          </div>
+          <div class="sm:col-span-2 lg:col-span-3">
+            <label class="block text-slate-400 mb-1">Payment Method</label>
+            <select name="PaymentMethod" class="w-full rounded-lg px-3 py-2 border border-slate-700 focus:border-emerald-500 focus:outline-none text-white">
+              <option>Electronic check</option>
+              <option>Mailed check</option>
+              <option>Bank transfer (automatic)</option>
+              <option>Credit card (automatic)</option>
+            </select>
+          </div>
+        </form>
+
+        <button onclick="runPrediction()" id="predictBtn" class="mt-6 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-white font-semibold text-base hover:opacity-90 transition flex items-center justify-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Predict Churn
+        </button>
+      </div>
+
+      <!-- Result -->
+      <div class="glass rounded-2xl p-6 flex flex-col items-center justify-center text-center fade-in" id="resultCard">
+        <div id="resultPlaceholder" class="text-slate-500">
+          <svg class="w-16 h-16 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <p class="text-sm">Fill in customer details and click <strong>Predict</strong></p>
+        </div>
+        <div id="resultContent" class="hidden">
+          <!-- SVG Gauge -->
+          <svg viewBox="0 0 120 120" class="w-44 h-44 mb-4">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="#1e293b" stroke-width="10"/>
+            <circle id="gaugeRing" cx="60" cy="60" r="52" fill="none" stroke="#10b981" stroke-width="10"
+              stroke-dasharray="326.73" stroke-dashoffset="326.73" stroke-linecap="round"
+              transform="rotate(-90 60 60)" class="gauge-ring"/>
+            <text id="gaugeText" x="60" y="56" text-anchor="middle" dominant-baseline="middle"
+              class="fill-white text-[28px] font-bold" style="font-family:'JetBrains Mono',monospace">0%</text>
+            <text x="60" y="76" text-anchor="middle" class="fill-slate-400 text-[10px]">churn probability</text>
+          </svg>
+          <div id="riskBadge" class="text-lg font-bold px-5 py-2 rounded-full mb-2">—</div>
+          <p id="riskDesc" class="text-sm text-slate-400 mt-2 max-w-[200px]"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ ARCHITECTURE ═══════════════════ -->
+<section id="architecture" class="py-16 px-6">
+  <div class="max-w-7xl mx-auto">
+    <h2 class="text-3xl font-bold mb-2 fade-in">MSTAN Architecture</h2>
+    <p class="text-slate-400 mb-8 fade-in">Three novel components that make this architecture unique</p>
+
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="glass rounded-2xl p-6 fade-in gradient-border">
+        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </div>
+        <h3 class="text-lg font-bold mb-2">Multi-Scale Temporal Convolutions</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">Parallel dilated causal convolutions at scales 1, 2, 4 capture short, medium, and long-range customer behavioural patterns simultaneously.</p>
+      </div>
+      <div class="glass rounded-2xl p-6 fade-in gradient-border">
+        <div class="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m-6-6l6 6 6-6"/></svg>
+        </div>
+        <h3 class="text-lg font-bold mb-2">Gated Feature Fusion</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">A soft gating mechanism dynamically weights each temporal scale per customer. A slow contract downgrade benefits from long-range; a sudden support call from short-range.</p>
+      </div>
+      <div class="glass rounded-2xl p-6 fade-in gradient-border">
+        <div class="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/></svg>
+        </div>
+        <h3 class="text-lg font-bold mb-2">Temporal Decay Attention</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">A learnable exponential decay bias <code class="text-amber-300">-&alpha;|i-j|</code> is added to attention logits, encoding the inductive bias that recent interactions are more predictive of churn.</p>
+      </div>
+    </div>
+
+    <!-- Pipeline flow -->
+    <div class="glass rounded-2xl p-6 mt-6 fade-in">
+      <h3 class="text-sm font-semibold text-slate-400 mb-4">Model Pipeline</h3>
+      <div class="flex flex-wrap items-center justify-center gap-3 text-sm font-mono">
+        <span class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700">Input (B, T, F)</span>
+        <span class="text-slate-600">&rarr;</span>
+        <span class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700">Linear Proj</span>
+        <span class="text-slate-600">&rarr;</span>
+        <span class="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">Multi-Scale Conv + Gate</span>
+        <span class="text-slate-600">&rarr;</span>
+        <span class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700">Pos Encoding</span>
+        <span class="text-slate-600">&rarr;</span>
+        <span class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700">[CLS] Prepend</span>
+        <span class="text-slate-600">&rarr;</span>
+        <span class="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">N &times; Decay Attention</span>
+        <span class="text-slate-600">&rarr;</span>
+        <span class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700">CLS Pool</span>
+        <span class="text-slate-600">&rarr;</span>
+        <span class="px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">Classifier</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ FOOTER ═══════════════════ -->
+<footer class="py-10 px-6 border-t border-slate-800/50 text-center text-sm text-slate-500">
+  <p>Churn AI &mdash; Final Year Project &mdash; Multi-Scale Temporal Attention Network</p>
+  <p class="mt-1">Built with PyTorch &bull; FastAPI &bull; Chart.js &bull; Tailwind CSS</p>
+</footer>
+
+<!-- ═══════════════════ SCRIPTS ═══════════════════ -->
+<script>
+// ── Colours ──────────────────────────────────────────────────
+const COLORS = {
+  'LogReg':         {bg:'rgba(102,217,178,0.7)', border:'#66d9b2'},
+  'RF':             {bg:'rgba(251,175,98,0.7)',  border:'#fbaf62'},
+  'LSTM':           {bg:'rgba(129,172,247,0.7)', border:'#81acf7'},
+  'Transformer':    {bg:'rgba(216,148,247,0.7)', border:'#d894f7'},
+  'MSTAN (Ours)':   {bg:'rgba(16,185,129,0.9)',  border:'#10b981'},
+};
+const MODEL_ORDER = ['LogReg','RF','LSTM','Transformer','MSTAN (Ours)'];
+
+// ── Intersection Observer (fade-in) ─────────────────────────
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, {threshold: 0.12});
+document.querySelectorAll('.fade-in').forEach(el => obs.observe(el));
+
+// ── Animated counters ────────────────────────────────────────
+document.querySelectorAll('[data-counter]').forEach(el => {
+  const target = parseFloat(el.dataset.counter);
+  let current = 0;
+  const step = target / 40;
+  const iv = setInterval(() => {
+    current += step;
+    if (current >= target) { current = target; clearInterval(iv); }
+    el.textContent = current.toFixed(3);
+  }, 30);
+});
+
+// ── Confusion matrix tabs ────────────────────────────────────
+document.querySelectorAll('#cmTabs .tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#cmTabs .tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const img = document.getElementById('cmImage');
+    img.style.opacity = '0';
+    setTimeout(() => {
+      img.src = '/api/figures/' + btn.dataset.img;
+      img.style.opacity = '1';
+    }, 200);
+  });
+});
+
+// ── Chart.js defaults ────────────────────────────────────────
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = 'rgba(148,163,184,0.1)';
+Chart.defaults.font.family = "'Inter', sans-serif";
+
+// ── Load data and build charts ───────────────────────────────
+async function init() {
+  const [comp, hist] = await Promise.all([
+    fetch('/api/comparison').then(r => r.json()),
+    fetch('/api/histories').then(r => r.json()).catch(() => null),
+  ]);
+
+  buildBarChart(comp);
+  buildRadarChart(comp);
+  buildMetricsTable(comp);
+  if (hist) buildTrainingCharts(hist);
+
+  // Update hero stat cards with real data
+  const mstan = comp['MSTAN (Ours)'];
+  if (mstan) {
+    const cards = document.querySelectorAll('[data-counter]');
+    cards[0].textContent = mstan.f1.toFixed(3);
+    cards[1].textContent = mstan.roc_auc.toFixed(3);
+  }
+}
+
+function buildBarChart(data) {
+  const metrics = ['f1','recall','precision','roc_auc','pr_auc'];
+  const labels = ['F1','Recall','Precision','ROC-AUC','PR-AUC'];
+  const datasets = MODEL_ORDER.filter(m => data[m]).map(m => ({
+    label: m,
+    data: metrics.map(k => data[m][k] || 0),
+    backgroundColor: COLORS[m].bg,
+    borderColor: COLORS[m].border,
+    borderWidth: 1, borderRadius: 4,
+  }));
+  new Chart(document.getElementById('barChart'), {
+    type:'bar', data:{labels, datasets},
+    options:{responsive:true, plugins:{legend:{position:'top',labels:{boxWidth:12,padding:16}}},
+      scales:{y:{beginAtZero:true,max:1,ticks:{callback:v=>v.toFixed(1)}}}}
+  });
+}
+
+function buildRadarChart(data) {
+  const metrics = ['f1','recall','precision','roc_auc','pr_auc'];
+  const labels = ['F1','Recall','Precision','ROC-AUC','PR-AUC'];
+  const datasets = MODEL_ORDER.filter(m => data[m]).map(m => ({
+    label: m,
+    data: metrics.map(k => data[m][k] || 0),
+    borderColor: COLORS[m].border,
+    backgroundColor: COLORS[m].bg.replace('0.7','0.1').replace('0.9','0.15'),
+    borderWidth: 2, pointRadius: 3,
+  }));
+  new Chart(document.getElementById('radarChart'), {
+    type:'radar', data:{labels, datasets},
+    options:{responsive:true, scales:{r:{beginAtZero:true,max:1,ticks:{display:false},grid:{color:'rgba(148,163,184,0.08)'}}},
+      plugins:{legend:{position:'top',labels:{boxWidth:12,padding:12}}}}
+  });
+}
+
+function buildMetricsTable(data) {
+  const tbody = document.getElementById('metricsTable');
+  MODEL_ORDER.filter(m => data[m]).forEach(m => {
+    const d = data[m];
+    const isNovel = m.includes('MSTAN');
+    tbody.innerHTML += `
+      <tr class="border-b border-slate-800/50 ${isNovel?'bg-emerald-500/5':'hover:bg-slate-800/30'} transition">
+        <td class="py-3 px-4 font-medium ${isNovel?'text-emerald-400':''}">${m}${isNovel?' <span class=\"text-xs bg-emerald-500/20 px-2 py-0.5 rounded-full ml-1\">Novel</span>':''}</td>
+        <td class="py-3 px-4 text-right font-mono">${d.f1.toFixed(3)}</td>
+        <td class="py-3 px-4 text-right font-mono">${d.recall.toFixed(3)}</td>
+        <td class="py-3 px-4 text-right font-mono">${d.precision.toFixed(3)}</td>
+        <td class="py-3 px-4 text-right font-mono">${d.roc_auc.toFixed(3)}</td>
+        <td class="py-3 px-4 text-right font-mono">${d.pr_auc.toFixed(3)}</td>
+      </tr>`;
+  });
+}
+
+function buildTrainingCharts(hist) {
+  const modelNames = Object.keys(hist);
+  // Validation Loss
+  new Chart(document.getElementById('valLossChart'), {
+    type:'line',
+    data:{ labels: hist[modelNames[0]].val_loss.map((_,i)=>i+1),
+      datasets: modelNames.map(m => ({
+        label:m, data:hist[m].val_loss,
+        borderColor:COLORS[m]?.border||'#888', borderWidth:2,
+        pointRadius:0, tension:0.3, fill:false,
+      }))
+    },
+    options:{responsive:true, interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{boxWidth:10}}},
+      scales:{x:{title:{display:true,text:'Epoch'}},y:{title:{display:true,text:'Loss'}}}}
+  });
+  // Validation F1
+  new Chart(document.getElementById('valF1Chart'), {
+    type:'line',
+    data:{ labels: hist[modelNames[0]].val_f1.map((_,i)=>i+1),
+      datasets: modelNames.map(m => ({
+        label:m, data:hist[m].val_f1,
+        borderColor:COLORS[m]?.border||'#888', borderWidth:2,
+        pointRadius:0, tension:0.3, fill:false,
+      }))
+    },
+    options:{responsive:true, interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{boxWidth:10}}},
+      scales:{x:{title:{display:true,text:'Epoch'}},y:{title:{display:true,text:'F1 Score'},min:0,max:1}}}
+  });
+}
+
+// ── Prediction ───────────────────────────────────────────────
+const PRESETS = {
+  high: {tenure:2,MonthlyCharges:105,TotalCharges:210,gender:'Male',SeniorCitizen:'1',Partner:'No',Dependents:'No',PhoneService:'Yes',MultipleLines:'Yes',InternetService:'Fiber optic',OnlineSecurity:'No',OnlineBackup:'No',DeviceProtection:'No',TechSupport:'No',StreamingTV:'Yes',StreamingMovies:'Yes',Contract:'Month-to-month',PaperlessBilling:'Yes',PaymentMethod:'Electronic check'},
+  low: {tenure:60,MonthlyCharges:35,TotalCharges:2100,gender:'Female',SeniorCitizen:'0',Partner:'Yes',Dependents:'Yes',PhoneService:'Yes',MultipleLines:'No',InternetService:'DSL',OnlineSecurity:'Yes',OnlineBackup:'Yes',DeviceProtection:'Yes',TechSupport:'Yes',StreamingTV:'No',StreamingMovies:'No',Contract:'Two year',PaperlessBilling:'No',PaymentMethod:'Credit card (automatic)'},
+};
+
+function fillPreset(type) {
+  const p = PRESETS[type];
+  const form = document.getElementById('predictForm');
+  Object.entries(p).forEach(([k,v]) => {
+    const el = form.querySelector(`[name="${k}"]`);
+    if (el) el.value = v;
+  });
+}
+
+async function runPrediction() {
+  const btn = document.getElementById('predictBtn');
+  btn.disabled = true; btn.textContent = 'Predicting...';
+
+  const form = document.getElementById('predictForm');
+  const data = {};
+  new FormData(form).forEach((v,k) => {
+    data[k] = isNaN(v) || v === '' ? v : parseFloat(v);
+  });
+
+  try {
+    const res = await fetch('/api/predict', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || 'Error');
+    const result = await res.json();
+    showResult(result);
+  } catch(e) {
+    alert('Prediction failed: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Predict Churn';
+  }
+}
+
+function showResult(r) {
+  document.getElementById('resultPlaceholder').classList.add('hidden');
+  document.getElementById('resultContent').classList.remove('hidden');
+
+  // Animate gauge
+  const circumference = 326.73;
+  const offset = circumference * (1 - r.probability);
+  const ring = document.getElementById('gaugeRing');
+  ring.style.stroke = r.color;
+  ring.style.strokeDashoffset = circumference; // reset
+  requestAnimationFrame(() => { ring.style.strokeDashoffset = offset; });
+
+  // Animate percentage text
+  const textEl = document.getElementById('gaugeText');
+  let cur = 0; const target = r.percentage;
+  const step = target / 30;
+  const iv = setInterval(() => {
+    cur += step;
+    if (cur >= target) { cur = target; clearInterval(iv); }
+    textEl.textContent = cur.toFixed(1) + '%';
+  }, 25);
+
+  // Risk badge
+  const badge = document.getElementById('riskBadge');
+  badge.textContent = r.risk + ' Risk';
+  badge.style.color = r.color;
+  badge.style.backgroundColor = r.color + '15';
+  badge.style.border = `1px solid ${r.color}50`;
+
+  // Description
+  const desc = document.getElementById('riskDesc');
+  if (r.risk === 'High') desc.textContent = 'This customer is very likely to churn. Immediate retention intervention recommended.';
+  else if (r.risk === 'Medium') desc.textContent = 'Moderate churn risk. Consider proactive engagement or loyalty offers.';
+  else desc.textContent = 'Low churn risk. Customer appears satisfied and stable.';
+}
+
+// ── Init ─────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

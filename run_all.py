@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pickle
 import time
 from typing import Dict
 
@@ -214,6 +215,12 @@ def main(config_path: str = "configs/base_config.yaml") -> None:
     print(f"  Train: {len(train_loader.dataset)}  Val: {len(val_loader.dataset)}  Test: {len(test_loader.dataset)}")
     print(f"  Data loaded in {time.time()-t0:.1f}s")
 
+    # Save preprocessor for the dashboard API (fast model loading)
+    pkl_path = os.path.join(cfg["paths"]["checkpoints"], "preprocessor.pkl")
+    with open(pkl_path, "wb") as f:
+        pickle.dump(dm.preprocessor, f)
+    print(f"  Saved preprocessor -> {pkl_path}")
+
     all_results: Dict[str, Dict] = {}
     histories: Dict[str, Dict] = {}
 
@@ -267,6 +274,10 @@ def main(config_path: str = "configs/base_config.yaml") -> None:
         safe_name = name.lower().replace(" ", "_").replace("(", "").replace(")", "")
         with open(os.path.join(report_dir, f"{safe_name}_metrics.json"), "w") as f:
             json.dump(res["metrics"], f, indent=2)
+
+    # Save training histories for interactive dashboard charts
+    with open(os.path.join(report_dir, "training_histories.json"), "w") as f:
+        json.dump(histories, f, indent=2)
 
     # ── Generate dashboard figures ───────────────────────────────
     metric_dict = {name: res["metrics"] for name, res in all_results.items()}
