@@ -3,7 +3,7 @@ seed: 42
 data:
   path: data/WA_Fn-UseC_-Telco-Customer-Churn.csv
   seq_len: 12
-  drift_std: 0.03          # std for numeric drift to simulate temporal behavior
+  drift_std: 0.03
   val_size: 0.15
   test_size: 0.15
   random_state: 42
@@ -11,26 +11,34 @@ data:
   id_col: customerID
 
 model:
-  type: transformer
+  type: mstan                 # options: mstan, transformer, lstm
   input_dropout: 0.1
   d_model: 64
   n_heads: 4
   num_layers: 2
   dim_feedforward: 128
-  dropout: 0.1
+  dropout: 0.15
   use_cls_token: true
-  pooling: mean            # options: mean, max, cls
+  pooling: mean               # for transformer: mean, max, cls
+  # MSTAN-specific
+  scales: [1, 2, 4]           # multi-scale temporal conv dilations
+  conv_kernel_size: 3          # causal conv kernel size
 
 training:
   batch_size: 64
-  num_epochs: 20
-  lr: 0.001
+  num_epochs: 50
+  lr: 0.0008
   weight_decay: 0.0001
-  optimizer: adamw         # options: adam, adamw
-  scheduler: cosine        # options: cosine, none
-  early_stopping_patience: 5
+  optimizer: adamw
+  scheduler: cosine
+  warmup_epochs: 5             # linear LR warmup
+  early_stopping_patience: 10
   grad_clip_norm: 1.0
-  device: auto             # auto | cpu | cuda
+  device: auto
+  # Focal loss for class imbalance
+  loss: focal                  # options: focal, bce
+  focal_alpha: 0.75            # weight for positive (churn) class
+  focal_gamma: 2.0             # focusing parameter
 
 paths:
   checkpoints: artifacts/checkpoints

@@ -13,8 +13,9 @@ from src.data.datamodule import TemporalDataModule
 from src.evaluation.interpretability import extract_attention
 from src.evaluation.visualize import plot_attention_weights, plot_confusion_matrix, plot_roc
 from src.models.lstm import LSTMChurnClassifier
+from src.models.mstan import MSTANChurnClassifier
 from src.models.transformer import TransformerChurnClassifier
-from src.training.metrics import classification_metrics, confusion_matrix
+from src.training.metrics import classification_metrics, classification_metrics_optimized, confusion_matrix, optimal_threshold
 from src.training.utils import get_device, set_seed
 
 
@@ -39,6 +40,18 @@ def build_model(model_type: str, input_dim: int, cfg: Dict) -> torch.nn.Module:
             num_layers=model_cfg.get("num_layers", 1),
             dropout=model_cfg.get("dropout", 0.1),
         )
+    elif model_type == "mstan":
+        return MSTANChurnClassifier(
+            input_dim=input_dim,
+            d_model=model_cfg.get("d_model", 64),
+            nhead=model_cfg.get("n_heads", 4),
+            num_layers=model_cfg.get("num_layers", 2),
+            dim_feedforward=model_cfg.get("dim_feedforward", 128),
+            dropout=model_cfg.get("dropout", 0.1),
+            input_dropout=model_cfg.get("input_dropout", 0.1),
+            scales=tuple(model_cfg.get("scales", [1, 2, 4])),
+            conv_kernel_size=model_cfg.get("conv_kernel_size", 3),
+        )
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
 
@@ -57,8 +70,8 @@ def evaluate(model, loader, device) -> Tuple[Dict, np.ndarray, np.ndarray, np.nd
             all_labels.append(labels)
     y_prob = np.concatenate(all_probs)
     y_true = np.concatenate(all_labels)
-    mets = classification_metrics(y_true, y_prob)
-    y_pred = (y_prob >= 0.5).astype(int)
+    mets = classification_metrics_optimized(y_true, y_prob)
+    y_pred = (y_prob >= mets["threshold"]).astype(int)
     cm = confusion_matrix(y_true, y_pred)
     return mets, cm, y_true, y_prob
 
@@ -74,7 +87,7 @@ def main(config_path: str, checkpoint: str, model_type: str) -> None:
     _, _, test_loader, feature_dim = data_module.dataloaders()
 
     model = build_model(model_type=model_type, input_dim=feature_dim, cfg=cfg).to(device)
-    state_dict = torch.load(checkpoint, map_location=device)
+    state_dict = torch.load(checkpoint, map_location=device, weights_only=True)
     model.load_state_dict(state_dict)
 
     metrics, cm, y_true, y_prob = evaluate(model, test_loader, device)
@@ -95,8 +108,8 @@ def main(config_path: str, checkpoint: str, model_type: str) -> None:
         path=os.path.join(fig_dir, f"{model_type}_roc.png"),
     )
 
-    # Interpretability for Transformer
-    if model_type == "transformer":
+    # Interpretability for attention-based models
+    if model_type in ("transformer", "mstan"):
         batch_x, _ = next(iter(test_loader))
         attn = extract_attention(model, batch_x, device=device)
         if attn is not None:
@@ -104,7 +117,7 @@ def main(config_path: str, checkpoint: str, model_type: str) -> None:
             plot_attention_weights(
                 attn_np,
                 path=os.path.join(fig_dir, f"{model_type}_attention.png"),
-                title="Mean attention (last layer)",
+                title=f"Mean attention (last layer) — {model_type.upper()}",
             )
 
     print("Test metrics:", metrics)
@@ -115,7 +128,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, default="configs/base_config.yaml")
     parser.add_argument("--checkpoint", type=str, required=True)
     parser.add_argument(
-        "--model", type=str, default="transformer", choices=["transformer", "lstm"]
+        "--model", type=str, default="mstan", choices=["transformer", "lstm", "mstan"]
     )
     args = parser.parse_args()
     main(config_path=args.config, checkpoint=args.checkpoint, model_type=args.model)
